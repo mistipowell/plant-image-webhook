@@ -3,15 +3,19 @@ import requests
 
 app = Flask(__name__)
 
-# Replace these with your actual Google API credentials
-API_KEY = "your_google_api_key"  # Get from Google Cloud Console
-CX = "your_custom_search_engine_id"  # Get from Google Programmable Search
+# Replace with your actual API keys
+API_KEY = "your_google_api_key"
+CX = "your_search_engine_id"
 
 def get_plant_images(plant_name):
     """ Fetches images from .org, .net, and .edu domains. """
     url = f"https://www.googleapis.com/customsearch/v1?q={plant_name}&searchType=image&siteSearchFilter=i&siteSearch=.org|.net|.edu&key={API_KEY}&cx={CX}"
     response = requests.get(url).json()
-    images = [item['link'] for item in response.get("items", [])]
+    
+    images = []
+    for item in response.get("items", []):
+        images.append({"imageUri": item["link"], "accessibilityText": plant_name})
+    
     return images[:3]  # Return top 3 images
 
 @app.route('/webhook', methods=['POST'])
@@ -26,8 +30,23 @@ def webhook():
     if not images:
         return jsonify({"fulfillmentText": "No images found for this plant."})
 
-    response_text = f"Here are images of {plant_name}: \n" + "\n".join(images)
-    return jsonify({"fulfillmentText": response_text})
+    # Send image responses
+    return jsonify({
+        "fulfillmentMessages": [
+            {
+                "card": {
+                    "title": f"Images of {plant_name}",
+                    "imageUri": images[0]["imageUri"],
+                    "buttons": [
+                        {
+                            "text": "View Image",
+                            "postback": images[0]["imageUri"]
+                        }
+                    ]
+                }
+            }
+        ]
+    })
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
